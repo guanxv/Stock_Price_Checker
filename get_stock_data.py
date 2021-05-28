@@ -20,9 +20,6 @@ def get_networth(fund_code):
     # with open(fund_code+".data", "w") as stock_file:
     #     stock_file.write(source)
 
-
-
-
     source = source.split(";")
     netWorth = ""
 
