@@ -2,6 +2,7 @@
 *.data
 *.xlsx
 *.png
+*.PNG
 *.jpg
 
 /venv

@@ -119,11 +119,14 @@ class TradeModel(object):  # 交易记录
 
         # -----图像加载，识别部分------
         pytesseract.pytesseract.tesseract_cmd = (
-            "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+            # "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
+            '/usr/bin/tesseract'
+
         )
 
         img = cv2.imread(
-            "C:/Users/Administrator/PycharmProjects/Stock_Price_Checker/Investment_Analysis/IMG-9738.png"
+            # "C:/Users/Administrator/PycharmProjects/Stock_Price_Checker/Investment_Analysis/IMG-9738.png"
+            "./Investment_Analysis/IMG-9736.PNG"
         )  #
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -225,6 +228,7 @@ stocklist.show()
 
 trade = TradeModel()
 trade.save()
+trade.scanImg()
 
 # stock list,
 # holding stock
