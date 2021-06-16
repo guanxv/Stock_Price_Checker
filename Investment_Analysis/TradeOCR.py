@@ -6,10 +6,6 @@ import sys
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf8")
 # --------------解决 VScode output 里中文乱码的问题---------------------
 
-
-
-
-
 #-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
 #把整个流程做成function，可以把这个function坐在别的class里 （比如trade）
 #trade class里可以有增加记录 删除记录，浏览记录，手动输入记录。
@@ -137,4 +133,4 @@ scanResult["NetWorth"] = float(netWorthRaw) if netWorthRaw != "" else 0
 scanResult["Fees"] = float(feesRaw) if netWorthRaw != "" else 0
 scanResult["Date"] = timeRaw
 
-# print(scanResult)
+print(scanResult)
