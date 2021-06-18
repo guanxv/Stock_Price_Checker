@@ -39,8 +39,8 @@ class ListView(Frame):
     def __init__(self, screen, model):
         super(ListView, self).__init__(
             screen,
-            screen.height * 2 // 3,
-            screen.width * 2 // 3,
+            screen.height * 4// 5,
+            screen.width * 4 // 5,
             on_load=self._reload_list,
             hover_focus=True,
             can_scroll=False,
