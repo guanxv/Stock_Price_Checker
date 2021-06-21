@@ -10,6 +10,7 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf8")
 import pandas as pd
 import cv2
 import pytesseract
+import os
 
 
 # ----------------数据模型，用来建立，读取，写入数据。于TUI对接。---------------
@@ -54,14 +55,23 @@ class StockListModel(object):  # 基金列表
 
     def save(self):
 
-        self._df.to_pickle("./Investment_Analysis/stock.pkl")
+        # self._df.to_pickle("./Investment_Analysis/stock.pkl")  #path in windonws system
+        self._df.to_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl")  # path in linux , may also work in windows
 
     def load(self):
 
-        self._df = pd.read_pickle("./Investment_Analysis/stock.pkl")
+        # self._df = pd.read_pickle("./Investment_Analysis/stock.pkl") #path in windonws system
+        self._df = pd.read_pickle(
+            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl"
+        )  # path in linux , may also work in windows
+
+    @property
+    def names_cn(self):
+
+        return self._df.NameCN.values
 
 
-class TradeModel(object):  # 交易记录
+class TradeHistoryModel(object):  # 交易记录
     def __init__(self):
 
         try:
@@ -73,6 +83,33 @@ class TradeModel(object):  # 交易记录
 
             print("Trade.pkl not found! Blank file will be created!")
             self.initBlankdf()
+
+        # Generate the list of pictures
+
+        # path = '/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/TradeHistoryPhoto'
+
+        # path = "./TradeHistoryPhoto"
+        path = "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/TradeHistoryPhoto"
+
+        # path = os.getcwd()
+        # print(path)
+
+        files = os.listdir(path)
+
+        scans = []
+
+        for f in files:
+
+            if ".PNG" in f or ".png" in f or ".jpg" in f:
+
+                scans.append(os.path.join(path, f))
+
+        # Scan all the pictures.
+
+        for scan in scans:
+
+            scanResult = self.scanImg(scan)
+            self.add_scan_result(scanResult)
 
     def initBlankdf(self):
 
@@ -95,14 +132,62 @@ class TradeModel(object):  # 交易记录
 
     def save(self):
 
-        self._df.to_pickle("./Investment_Analysis/trade.pkl")
+        # self._df.to_pickle("./Investment_Analysis/trade.pkl")
+        self._df.to_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl")
 
     def load(self):
 
-        self._df = pd.read_pickle("./Investment_Analysis/trade.pkl")
+        # self._df = pd.read_pickle("./Investment_Analysis/trade.pkl")
+        self._df = pd.read_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl")
 
-    def scanImg(self):
+    def show(self):
 
+        # self._df.style.set_properties(**{'text-align': 'right'})
+        self._df = self._df.sort_values(by = ['Date','Name'] ,ascending = True)
+
+        print(self._df)
+
+    def add_scan_result(self, result):
+
+        duplicated = False
+
+        for orderNumber in self._df.OrderNumber.values:
+
+            # print(orderNumber)
+            # print(result["OrderNumber"])
+
+            if orderNumber == result["OrderNumber"]:
+
+                duplicated = True
+
+                break
+
+
+            else:
+                
+                duplicated = False
+
+
+        if not duplicated:
+            
+            self._df = self._df.append(result, ignore_index=True)
+
+        # hello
+
+    def scanImg(self, picPath):
+
+        # Get the short name of Stock List in Chinese
+        temp = []
+
+        stock_cn_names = stocklist.names_cn
+
+        for name_cn in stock_cn_names:
+            name_cn = name_cn[:5]
+            temp.append(name_cn)
+
+        stock_cn_names_srt = temp
+
+        # print(picPath)
         # 图像识别结果输入数据格式。
         # 交易类型 = ['买入', '卖出', '红利再投资' ,'增强']
 
@@ -120,13 +205,13 @@ class TradeModel(object):  # 交易记录
         # -----图像加载，识别部分------
         pytesseract.pytesseract.tesseract_cmd = (
             # "C:\\Program Files\\Tesseract-OCR\\tesseract.exe"
-            '/usr/bin/tesseract'
-
+            "/usr/bin/tesseract"
         )
 
         img = cv2.imread(
             # "C:/Users/Administrator/PycharmProjects/Stock_Price_Checker/Investment_Analysis/IMG-9738.png"
-            "./Investment_Analysis/IMG-9736.PNG"
+            #  "./Investment_Analysis/IMG-9736.PNG"
+            picPath
         )  #
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -153,7 +238,7 @@ class TradeModel(object):  # 交易记录
                 temp.append(item)
 
         result = temp
-        print(result)
+        # print(result)
         # -----图像加载，识别部分------ 结束
 
         # ------分析数据，生成返回数据 scanResult
@@ -162,8 +247,18 @@ class TradeModel(object):  # 交易记录
         netWorthRaw = ""
         feesRaw = ""
         timeRaw = ""
+        stockNameRaw = ""
+        amountRaw = ""
 
         for index, item in enumerate(result, start=0):
+
+            # 名称
+            for i, name in enumerate(stock_cn_names_srt, start=0):
+
+                if name in item:
+
+                    stockNameRaw = stock_cn_names[i]
+
             # 交易类型
             if "红利再投资" in item:
                 scanResult["Type"] = "红利再投资"
@@ -174,9 +269,10 @@ class TradeModel(object):  # 交易记录
             elif "交易类型" in item and "强增" in item:
                 scanResult["Type"] = "强增"
 
-            # -#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
-            # 加载stock data frame 用来确认交易产品名称
-            # -#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-#-
+            #金额
+
+            elif "确认金额" in item:
+                amountRaw = item
 
             # 时间
             elif "时间" in item and "确认时间" not in item:
@@ -202,33 +298,43 @@ class TradeModel(object):  # 交易记录
 
         # post process
         unitRaw = "".join(c for c in unitRaw if c.isdigit() or c == ".")
-        orderNumRaw = orderNumRaw.strip(" ").strip("订单号")
+        orderNumRaw = orderNumRaw.strip("订单号").strip(" ")
         netWorthRaw = netWorthRaw.strip(" ").strip("确认净值")
         feesRaw = "".join(c for c in feesRaw if c.isdigit() or c == ".")
         timeRaw = "".join(c for c in timeRaw if c.isdigit() or c in ".:-")
-        timeRaw = timeRaw[:9] + " " + timeRaw[10:]
-
+        timeRaw = timeRaw[:10] + " " + timeRaw[10:]
+        amountRaw = "".join(c for c in amountRaw if c.isdigit() or c in ".")
+        lHalf = amountRaw[:-3]
+        lHalf = lHalf.replace(".","")
+        rHalf = amountRaw[-3:]
+        amountRaw = lHalf + rHalf
+   
         # print(netWorthRaw)
 
         # 给dictionary赋值
         scanResult["OrderNumber"] = orderNumRaw
-        scanResult["Unit"] = float(unitRaw)
+        scanResult["Unit"] = float(unitRaw) if unitRaw != "" else 0
         scanResult["NetWorth"] = float(netWorthRaw) if netWorthRaw != "" else 0
         scanResult["Fees"] = float(feesRaw) if netWorthRaw != "" else 0
         scanResult["Date"] = timeRaw
+        scanResult["Amount"] = float(amountRaw) if amountRaw != "" else 0
+        scanResult["Name"] = stockNameRaw
 
-        #return scanResult
-        print(scanResult)
+
+        return scanResult
+        # print(scanResult)
 
 
 stocklist = StockListModel()
 stocklist.save()
 # stocklist.load()
-stocklist.show()
+# stocklist.show()
 
-trade = TradeModel()
-trade.save()
-trade.scanImg()
+
+tradehistory = TradeHistoryModel()
+tradehistory.save()
+tradehistory.show()
+
 
 # stock list,
 # holding stock
