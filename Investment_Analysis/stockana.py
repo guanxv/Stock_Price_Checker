@@ -13,6 +13,22 @@ import pytesseract
 import os
 
 
+from asciimatics.widgets import (
+    Frame,
+    ListBox,
+    Layout,
+    Divider,
+    Text,
+    Button,
+    TextBox,
+    Widget,
+)
+from asciimatics.scene import Scene
+from asciimatics.screen import Screen
+from asciimatics.exceptions import ResizeScreenError, NextScene, StopApplication
+import sys
+
+
 # ----------------数据模型，用来建立，读取，写入数据。于TUI对接。---------------
 class StockListModel(object):  # 基金列表
     def __init__(self):
@@ -56,7 +72,9 @@ class StockListModel(object):  # 基金列表
     def save(self):
 
         # self._df.to_pickle("./Investment_Analysis/stock.pkl")  #path in windonws system
-        self._df.to_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl")  # path in linux , may also work in windows
+        self._df.to_pickle(
+            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl"
+        )  # path in linux , may also work in windows
 
     def load(self):
 
@@ -73,6 +91,9 @@ class StockListModel(object):  # 基金列表
 
 class TradeHistoryModel(object):  # 交易记录
     def __init__(self):
+
+        # Current trade id when editing.
+        self.current_id = None
 
         try:
 
@@ -111,6 +132,21 @@ class TradeHistoryModel(object):  # 交易记录
             scanResult = self.scanImg(scan)
             self.add_scan_result(scanResult)
 
+        # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d %H:%M:%S') #将字符转换为 pd datatime 数据
+        # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d') #将字符转换为 pd datatime 数据
+        # df['date'] = df['datetime'].dt.date # 只保留日期。建立新column
+
+        self._df.sort_values(by=["Date", "Name"], ascending=True).reset_index(
+            drop=True, inplace=True
+        )
+
+        self._df["AmountStr"] = self._df["Amount"].apply(str)
+        self._df["UnitStr"] = self._df["Unit"].apply(str)
+        self._df["NetWorthStr"] = self._df["NetWorth"].apply(str)
+        self._df["FeesStr"] = self._df["Fees"].apply(str)
+
+        self.total_id = len(self._df)
+
     def initBlankdf(self):
 
         # initiate the datafram , only need for first run
@@ -125,7 +161,7 @@ class TradeHistoryModel(object):  # 交易记录
             "OrderNumber",
         ]
         data = [
-            ["买入", "景顺长城鼎益混合（LOF）", "2021-06-1 11:04:15", 0, 0, 0, 0, "202100000000"],
+            ["买入", "TEST", "2021-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
         ]
 
         self._df = pd.DataFrame(data, columns=columns)
@@ -133,18 +169,20 @@ class TradeHistoryModel(object):  # 交易记录
     def save(self):
 
         # self._df.to_pickle("./Investment_Analysis/trade.pkl")
-        self._df.to_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl")
+        self._df.to_pickle(
+            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl"
+        )
 
     def load(self):
 
         # self._df = pd.read_pickle("./Investment_Analysis/trade.pkl")
-        self._df = pd.read_pickle("/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl")
+        self._df = pd.read_pickle(
+            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl"
+        )
 
     def show(self):
 
         # self._df.style.set_properties(**{'text-align': 'right'})
-        self._df = self._df.sort_values(by = ['Date','Name'] ,ascending = True)
-
         print(self._df)
 
     def add_scan_result(self, result):
@@ -160,16 +198,10 @@ class TradeHistoryModel(object):  # 交易记录
 
                 duplicated = True
 
-                break
-
-
-            else:
-                
-                duplicated = False
-
+                return
 
         if not duplicated:
-            
+
             self._df = self._df.append(result, ignore_index=True)
 
         # hello
@@ -182,7 +214,7 @@ class TradeHistoryModel(object):  # 交易记录
         stock_cn_names = stocklist.names_cn
 
         for name_cn in stock_cn_names:
-            name_cn = name_cn[:5]
+            name_cn = name_cn[:6]
             temp.append(name_cn)
 
         stock_cn_names_srt = temp
@@ -227,6 +259,8 @@ class TradeHistoryModel(object):  # 交易记录
         # cv2.waitKey(0)
 
         result = pytesseract.image_to_string(img, lang="chi_sim")
+        # print(result)
+
         result = result.splitlines()
 
         # print(result)
@@ -259,6 +293,10 @@ class TradeHistoryModel(object):  # 交易记录
 
                     stockNameRaw = stock_cn_names[i]
 
+                elif "景顺长城" in item and "益混合(LOF)" in item:
+
+                    stockNameRaw = "景顺长城鼎益混合（LOF）"
+
             # 交易类型
             if "红利再投资" in item:
                 scanResult["Type"] = "红利再投资"
@@ -269,7 +307,7 @@ class TradeHistoryModel(object):  # 交易记录
             elif "交易类型" in item and "强增" in item:
                 scanResult["Type"] = "强增"
 
-            #金额
+            # 金额
 
             elif "确认金额" in item:
                 amountRaw = item
@@ -285,8 +323,10 @@ class TradeHistoryModel(object):  # 交易记录
                 orderNumRaw = item
 
             # 确认份额
-            elif "份" in item and unitRaw == "":  # 增加 unitRaw == ""，这样只会处理第一个含“份”的字符
-                unitRaw = item
+            elif (
+                "份" in item and unitRaw == "" and "股份" not in item
+            ):  # 增加 unitRaw == ""，这样只会处理第一个含“份”的字符
+                unitRaw = item  # 增加 "股份" not in item, 这样不会处理"银华基金管理股份有限公司"
 
             # 确认净值
             elif "确认净值" in item:
@@ -305,24 +345,26 @@ class TradeHistoryModel(object):  # 交易记录
         timeRaw = timeRaw[:10] + " " + timeRaw[10:]
         amountRaw = "".join(c for c in amountRaw if c.isdigit() or c in ".")
         lHalf = amountRaw[:-3]
-        lHalf = lHalf.replace(".","")
+        lHalf = lHalf.replace(".", "")
         rHalf = amountRaw[-3:]
         amountRaw = lHalf + rHalf
-   
+
         # print(netWorthRaw)
 
         # 给dictionary赋值
         scanResult["OrderNumber"] = orderNumRaw
         scanResult["Unit"] = float(unitRaw) if unitRaw != "" else 0
-        scanResult["NetWorth"] = float(netWorthRaw) if netWorthRaw != "" else 0
-        scanResult["Fees"] = float(feesRaw) if netWorthRaw != "" else 0
+        netWorthRaw = float(netWorthRaw) if netWorthRaw != "" else 0
+        scanResult["NetWorth"] = (
+            netWorthRaw if netWorthRaw < 100 else netWorthRaw / 10000
+        )
+        scanResult["Fees"] = float(feesRaw) if feesRaw != "" else 0
         scanResult["Date"] = timeRaw
         scanResult["Amount"] = float(amountRaw) if amountRaw != "" else 0
         scanResult["Name"] = stockNameRaw
 
-
-        return scanResult
         # print(scanResult)
+        return scanResult
 
 
 stocklist = StockListModel()
@@ -333,7 +375,124 @@ stocklist.save()
 
 tradehistory = TradeHistoryModel()
 tradehistory.save()
-tradehistory.show()
+# tradehistory.show()
+
+# ------------ asciimatic TUI 图形界面 ---------------------
+
+
+class TradeView(Frame):
+    def __init__(self, screen, model):
+        super(TradeView, self).__init__(
+            screen,
+            screen.height * 4 // 5,
+            screen.width * 4 // 5,
+            hover_focus=True,
+            can_scroll=False,
+            title="交易记录",
+            reduce_cpu=True,
+        )
+        # Save off the model that accesses the contacts database.
+        self._model = model
+
+        # Create the form for displaying the list of contacts.
+        layout = Layout([100], fill_frame=True)
+        self.add_layout(layout)
+        layout.add_widget(
+            Text("交易类型:", "Type")
+        )  # Label = "Type:" 在TUI 显示的标题 , Name "Type" 与Dataframe / List / Dict 对应的column名称
+        layout.add_widget(Text("基金名称:", "Name"))
+        layout.add_widget(Text("买入时间:", "Date"))
+        layout.add_widget(Text("确认金额:", "AmountStr"))
+        layout.add_widget(Text("确认份额:", "UnitStr"))
+        layout.add_widget(Text("确认净值:", "NetWorthStr"))
+        layout.add_widget(Text("手续费:", "FeesStr"))
+        layout.add_widget(Text("订单号:", "OrderNumber"))
+
+        layout2 = Layout([1, 1, 1, 1])
+        self.add_layout(layout2)
+        layout2.add_widget(Button("确认", self._ok), 0)
+        layout2.add_widget(Button("上一条", self._previous), 1)
+        layout2.add_widget(Button("下一条", self._next), 2)
+        layout2.add_widget(Button("取消", self._cancel), 3)
+        self.fix()
+
+    def reset(self):
+        # Do standard reset to clear out form, then populate with new data.
+        super(TradeView, self).reset()
+        if self._model.current_id is None:
+
+            columns = [
+                "Type",
+                "Name",
+                "Date",
+                "Amount",
+                "Unit",
+                "NetWorth",
+                "Fees",
+                "OrderNumber",
+            ]
+            data = [
+                ["买入", "TEST", "2021-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
+            ]
+
+            self.data = pd.DataFrame(data, columns=columns).iloc[0]
+
+        else:
+            self.data = self._model._df.iloc[self._model.current_id]
+            # self.data = self._model._df.iloc[4]
+
+    def _ok(self):
+        self.save()
+        if self._model.current_id is None:
+            self._model.contacts.append(self.data)
+        else:
+            self._model.contacts[self._model.current_id] = self.data
+        raise NextScene("Main")
+
+    def _next(self):
+
+        if self._model.current_id == None:
+            self._model.current_id = 0
+
+        if self._model.current_id < self._model.total_id - 1:
+
+            self._model.current_id += 1
+
+        self.data = self._model._df.iloc[self._model.current_id]
+
+    def _previous(self):
+        if self._model.current_id == None:
+            self._model.current_id = 0
+
+        if self._model.current_id > 0:
+
+            self._model.current_id += -1
+
+        self.data = self._model._df.iloc[self._model.current_id]
+
+    @staticmethod
+    def _cancel():
+        raise NextScene("Main")
+
+
+def demo(screen, scene):
+    scenes = [
+        # Scene([TradeView(screen, contacts)], -1, name="Main"),
+        Scene([TradeView(screen, tradehistory)], -1, name="TradeDetail")
+    ]
+
+    screen.play(scenes, stop_on_resize=True, start_scene=scene, allow_int=True)
+
+
+tradehistory = TradeHistoryModel()
+
+last_scene = None
+while True:
+    try:
+        Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
+        sys.exit(0)
+    except ResizeScreenError as e:
+        last_scene = e.scene
 
 
 # stock list,
