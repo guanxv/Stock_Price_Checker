@@ -4,12 +4,18 @@
 *.png
 *.PNG
 *.jpg
+*.pkl
+*.py[co]
+test.py
+*.csv
+scan.log
+test2.py
 
 /venv
 /.vscode
 /build
 /dist
-/__pycache__
+__pycache__/
 *.spec
 
 /asciimatics_samples

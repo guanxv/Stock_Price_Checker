@@ -28,6 +28,10 @@ from asciimatics.screen import Screen
 from asciimatics.exceptions import ResizeScreenError, NextScene, StopApplication
 import sys
 
+import csv  # for scanned log file
+from tools import diff
+
+project_path = "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/"
 
 # ----------------数据模型，用来建立，读取，写入数据。于TUI对接。---------------
 class StockListModel(object):  # 基金列表
@@ -73,14 +77,14 @@ class StockListModel(object):  # 基金列表
 
         # self._df.to_pickle("./Investment_Analysis/stock.pkl")  #path in windonws system
         self._df.to_pickle(
-            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl"
+            project_path + "stock.pkl"
         )  # path in linux , may also work in windows
 
     def load(self):
 
         # self._df = pd.read_pickle("./Investment_Analysis/stock.pkl") #path in windonws system
         self._df = pd.read_pickle(
-            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/stock.pkl"
+            project_path + "stock.pkl"
         )  # path in linux , may also work in windows
 
     @property
@@ -110,10 +114,28 @@ class TradeHistoryModel(object):  # 交易记录
         # path = '/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/TradeHistoryPhoto'
 
         # path = "./TradeHistoryPhoto"
-        path = "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/TradeHistoryPhoto"
+        path = project_path + "TradeHistoryPhoto"
 
         # path = os.getcwd()
         # print(path)
+
+        # try to load scaned log file
+
+        scanned = []
+
+        try:
+
+            with open(project_path + "scan.log") as scanned_csv:
+
+                reader = csv.reader(scanned_csv)
+                for row in reader:
+                    scanned.append(row[0])
+
+        except FileNotFoundError:
+
+            scanned = []
+
+        # get a list of picture files
 
         files = os.listdir(path)
 
@@ -125,12 +147,25 @@ class TradeHistoryModel(object):  # 交易记录
 
                 scans.append(os.path.join(path, f))
 
-        # Scan all the pictures.
+        # excluded the scanned files
+
+        scans = diff(scans, scanned)
+
+        scanned = []
+
+        # Scan all the remain pictures.
 
         for scan in scans:
 
             scanResult = self.scanImg(scan)
             self.add_scan_result(scanResult)
+            scanned.append(scan)  # add the file name back to scanned
+
+        # write scanned file back to log file
+        with open(project_path + "scan.log", "a", newline="") as f:
+            writer = csv.writer(f)
+            for item in scanned:
+                writer.writerow([item])
 
         # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d %H:%M:%S') #将字符转换为 pd datatime 数据
         # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d') #将字符转换为 pd datatime 数据
@@ -140,10 +175,7 @@ class TradeHistoryModel(object):  # 交易记录
             drop=True, inplace=True
         )
 
-        self._df["AmountStr"] = self._df["Amount"].apply(str)
-        self._df["UnitStr"] = self._df["Unit"].apply(str)
-        self._df["NetWorthStr"] = self._df["NetWorth"].apply(str)
-        self._df["FeesStr"] = self._df["Fees"].apply(str)
+        self.updateStrValue()
 
         self.total_id = len(self._df)
 
@@ -169,16 +201,12 @@ class TradeHistoryModel(object):  # 交易记录
     def save(self):
 
         # self._df.to_pickle("./Investment_Analysis/trade.pkl")
-        self._df.to_pickle(
-            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl"
-        )
+        self._df.to_pickle(project_path + "trade.pkl")
 
     def load(self):
 
         # self._df = pd.read_pickle("./Investment_Analysis/trade.pkl")
-        self._df = pd.read_pickle(
-            "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/trade.pkl"
-        )
+        self._df = pd.read_pickle(project_path + "trade.pkl")
 
     def show(self):
 
@@ -205,6 +233,20 @@ class TradeHistoryModel(object):  # 交易记录
             self._df = self._df.append(result, ignore_index=True)
 
         # hello
+
+    def updateFloatValue(self):
+
+        self._df["Amount"] = self._df["AmountStr"].apply(float)
+        self._df["Unit"] = self._df["UnitStr"].apply(float)
+        self._df["NetWorth"] = self._df["NetWorthStr"].apply(float)
+        self._df["Fees"] = self._df["FeesStr"].apply(float)
+
+    def updateStrValue(self):
+
+        self._df["AmountStr"] = self._df["Amount"].apply(str)
+        self._df["UnitStr"] = self._df["Unit"].apply(str)
+        self._df["NetWorthStr"] = self._df["NetWorth"].apply(str)
+        self._df["FeesStr"] = self._df["Fees"].apply(str)
 
     def scanImg(self, picPath):
 
@@ -393,6 +435,7 @@ class TradeView(Frame):
         )
         # Save off the model that accesses the contacts database.
         self._model = model
+        self._df = model._df
 
         # Create the form for displaying the list of contacts.
         layout = Layout([100], fill_frame=True)
@@ -438,16 +481,20 @@ class TradeView(Frame):
             self.data = pd.DataFrame(data, columns=columns).iloc[0]
 
         else:
-            self.data = self._model._df.iloc[self._model.current_id]
-            # self.data = self._model._df.iloc[4]
+            self.data = self._df.iloc[self._model.current_id]
+            # self.data = self._df.iloc[4]
 
     def _ok(self):
         self.save()
         if self._model.current_id is None:
             self._model.contacts.append(self.data)
         else:
-            self._model.contacts[self._model.current_id] = self.data
-        raise NextScene("Main")
+
+            self._df.iloc[self._model.current_id] = self.data.values()
+            self._model.updateFloatValue()
+            self._model.save()
+
+        # raise NextScene("Main")
 
     def _next(self):
 
@@ -458,7 +505,7 @@ class TradeView(Frame):
 
             self._model.current_id += 1
 
-        self.data = self._model._df.iloc[self._model.current_id]
+        self.data = self._df.iloc[self._model.current_id]
 
     def _previous(self):
         if self._model.current_id == None:
@@ -468,7 +515,7 @@ class TradeView(Frame):
 
             self._model.current_id += -1
 
-        self.data = self._model._df.iloc[self._model.current_id]
+        self.data = self._df.iloc[self._model.current_id]
 
     @staticmethod
     def _cancel():
