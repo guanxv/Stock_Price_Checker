@@ -30,6 +30,7 @@ import sys
 
 import csv  # for scanned log file
 from tools import diff
+from existing_stock import df_before2020apr
 
 project_path = "/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/"
 
@@ -109,6 +110,13 @@ class TradeHistoryModel(object):  # 交易记录
             print("Trade.pkl not found! Blank file will be created!")
             self.initBlankdf()
 
+        if (
+            not "已有份额" in self._df["Type"].unique()
+            # and not "2021-06-11 11:04:15" in self._df["DateStr"].unique()
+        ):
+
+            self._df = pd.concat([self._df, df_before2020apr])
+
         # Generate the list of pictures
 
         # path = '/home/guanxv/Python_Project/Stock_Price_Checker/Investment_Analysis/TradeHistoryPhoto'
@@ -171,11 +179,15 @@ class TradeHistoryModel(object):  # 交易记录
         # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d') #将字符转换为 pd datatime 数据
         # df['date'] = df['datetime'].dt.date # 只保留日期。建立新column
 
+        self.updateStrValue()
+        self.updateTotalAmount()
+        self.updateDate()
+
         self._df.sort_values(by=["Date", "Name"], ascending=True).reset_index(
             drop=True, inplace=True
         )
 
-        self.updateStrValue()
+        print(self._df)
 
         self.total_id = len(self._df)
 
@@ -185,7 +197,7 @@ class TradeHistoryModel(object):  # 交易记录
         columns = [
             "Type",
             "Name",
-            "Date",
+            "DateStr",
             "Amount",
             "Unit",
             "NetWorth",
@@ -248,6 +260,24 @@ class TradeHistoryModel(object):  # 交易记录
         self._df["NetWorthStr"] = self._df["NetWorth"].apply(str)
         self._df["FeesStr"] = self._df["Fees"].apply(str)
 
+    def updateTotalAmount(self):
+
+        self._df["TotalAmount"] = self._df["Fees"] + self._df["Amount"]
+
+    def updateDate(self):
+
+        self._df["Date"] = self._df["DateStr"].apply(lambda x: x[:10])
+        self._df["Date"] = pd.to_datetime(self._df["Date"], format="%Y-%m-%d")
+
+        print(self._df)
+
+        monthview = (
+            self._df.groupby(pd.Grouper(key="Date", freq="M"))
+            .TotalAmount.sum()
+            .reset_index()
+        )
+        print(monthview)
+
     def scanImg(self, picPath):
 
         # Get the short name of Stock List in Chinese
@@ -268,7 +298,7 @@ class TradeHistoryModel(object):  # 交易记录
         scanResult = {
             "Type": "",  # 交易类型
             "Name": "",  # 基金名称
-            "Date": "",  # 操作时间
+            "DateStr": "",  # 操作时间
             "Amount": 0,  # 总金额
             "Unit": 0,  # 确认份额
             "NetWorth": 0,  # 单位净值
@@ -401,7 +431,7 @@ class TradeHistoryModel(object):  # 交易记录
             netWorthRaw if netWorthRaw < 100 else netWorthRaw / 10000
         )
         scanResult["Fees"] = float(feesRaw) if feesRaw != "" else 0
-        scanResult["Date"] = timeRaw
+        scanResult["DateStr"] = timeRaw
         scanResult["Amount"] = float(amountRaw) if amountRaw != "" else 0
         scanResult["Name"] = stockNameRaw
 
@@ -412,7 +442,7 @@ class TradeHistoryModel(object):  # 交易记录
 stocklist = StockListModel()
 stocklist.save()
 # stocklist.load()
-# stocklist.show()
+stocklist.show()
 
 
 tradehistory = TradeHistoryModel()
@@ -444,7 +474,7 @@ class TradeView(Frame):
             Text("交易类型:", "Type")
         )  # Label = "Type:" 在TUI 显示的标题 , Name "Type" 与Dataframe / List / Dict 对应的column名称
         layout.add_widget(Text("基金名称:", "Name"))
-        layout.add_widget(Text("买入时间:", "Date"))
+        layout.add_widget(Text("买入时间:", "DateStr"))
         layout.add_widget(Text("确认金额:", "AmountStr"))
         layout.add_widget(Text("确认份额:", "UnitStr"))
         layout.add_widget(Text("确认净值:", "NetWorthStr"))
@@ -467,7 +497,7 @@ class TradeView(Frame):
             columns = [
                 "Type",
                 "Name",
-                "Date",
+                "DateStr",
                 "Amount",
                 "Unit",
                 "NetWorth",
@@ -531,15 +561,16 @@ def demo(screen, scene):
     screen.play(scenes, stop_on_resize=True, start_scene=scene, allow_int=True)
 
 
-tradehistory = TradeHistoryModel()
+# tradehistory = TradeHistoryModel()
 
-last_scene = None
-while True:
-    try:
-        Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
-        sys.exit(0)
-    except ResizeScreenError as e:
-        last_scene = e.scene
+
+# last_scene = None
+# while True:
+#     try:
+#         Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
+#         sys.exit(0)
+#     except ResizeScreenError as e:
+#         last_scene = e.scene
 
 
 # stock list,
