@@ -111,7 +111,8 @@ class TradeHistoryModel(object):  # 交易记录
             self.initBlankdf()
 
         if (
-            not "已有份额" in self._df["Type"].unique()
+            not "已有份额"
+            in self._df["Type"].unique()
             # and not "2021-06-11 11:04:15" in self._df["DateStr"].unique()
         ):
 
@@ -179,15 +180,9 @@ class TradeHistoryModel(object):  # 交易记录
         # self._df['Date'] = pd.to_datetime(self._df['Date'], format='%Y-%m-%d') #将字符转换为 pd datatime 数据
         # df['date'] = df['datetime'].dt.date # 只保留日期。建立新column
 
-        self.updateStrValue()
-        self.updateTotalAmount()
-        self.updateDate()
+        self.dfUpdate()
 
-        self._df.sort_values(by=["Date", "Name"], ascending=True).reset_index(
-            drop=True, inplace=True
-        )
-
-        print(self._df)
+        # print(self._df)
 
         self.total_id = len(self._df)
 
@@ -205,7 +200,7 @@ class TradeHistoryModel(object):  # 交易记录
             "OrderNumber",
         ]
         data = [
-            ["买入", "TEST", "2021-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
+            ["买入", "TEST", "2000-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
         ]
 
         self._df = pd.DataFrame(data, columns=columns)
@@ -269,14 +264,23 @@ class TradeHistoryModel(object):  # 交易记录
         self._df["Date"] = self._df["DateStr"].apply(lambda x: x[:10])
         self._df["Date"] = pd.to_datetime(self._df["Date"], format="%Y-%m-%d")
 
-        print(self._df)
+        # print(self._df)
 
-        monthview = (
-            self._df.groupby(pd.Grouper(key="Date", freq="M"))
-            .TotalAmount.sum()
-            .reset_index()
+    def dfUpdate(self):
+
+        self.updateTotalAmount()
+        self.updateStrValue()
+        self.updateDate()
+
+        self._df = self._df.sort_values(by=["Date", "Name"], ascending=True)
+        self._df.reset_index(drop=True, inplace=True)
+
+    def monthCapital(self):
+
+        monthCap = self._df.groupby(
+            pd.Grouper(key="Date", freq="M").TotalAmount.sum().reset_index()
         )
-        print(monthview)
+        print(monthCap)
 
     def scanImg(self, picPath):
 
@@ -447,7 +451,8 @@ stocklist.show()
 
 tradehistory = TradeHistoryModel()
 tradehistory.save()
-# tradehistory.show()
+tradehistory.dfUpdate()
+tradehistory.show()
 
 # ------------ asciimatic TUI 图形界面 ---------------------
 
@@ -505,7 +510,7 @@ class TradeView(Frame):
                 "OrderNumber",
             ]
             data = [
-                ["买入", "TEST", "2021-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
+                ["买入", "TEST", "2000-06-11 11:04:15", 0, 0, 0, 0, "00000000"],
             ]
 
             self.data = pd.DataFrame(data, columns=columns).iloc[0]
@@ -564,13 +569,13 @@ def demo(screen, scene):
 # tradehistory = TradeHistoryModel()
 
 
-# last_scene = None
-# while True:
-#     try:
-#         Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
-#         sys.exit(0)
-#     except ResizeScreenError as e:
-#         last_scene = e.scene
+last_scene = None
+while True:
+    try:
+        Screen.wrapper(demo, catch_interrupt=True, arguments=[last_scene])
+        sys.exit(0)
+    except ResizeScreenError as e:
+        last_scene = e.scene
 
 
 # stock list,
