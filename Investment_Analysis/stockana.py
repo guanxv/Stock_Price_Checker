@@ -22,6 +22,7 @@ from asciimatics.widgets import (
     Button,
     TextBox,
     Widget,
+    DropdownList,
 )
 from asciimatics.scene import Scene
 from asciimatics.screen import Screen
@@ -456,7 +457,7 @@ tradehistory.show()
 
 # ------------ asciimatic TUI 图形界面 ---------------------
 
-
+# ----- Trade History view -----
 class TradeView(Frame):
     def __init__(self, screen, model):
         super(TradeView, self).__init__(
@@ -557,16 +558,146 @@ class TradeView(Frame):
         raise NextScene("Main")
 
 
+# ----- Month view -----
+class MonthView(Frame):
+    def __init__(self, screen, model):
+        super(MonthView, self).__init__(
+            screen,
+            screen.height * 4 // 5,
+            screen.width * 4 // 5,
+            hover_focus=True,
+            can_scroll=False,
+            title="月度汇总",
+            reduce_cpu=True,
+        )
+        # Save off the model that accesses the contacts database.
+        self._model = model
+        self._df = model._df
+
+        layout = Layout([1, 18, 1])
+        self.add_layout(layout)
+
+        layout.add_widget(
+            DropdownList(
+                [
+                    ("Item 1", 1),
+                    ("Item 2", 2),
+                    ("Item 3", 3),
+                    ("Item 3", 4),
+                    ("Item 3", 5),
+                    ("Item 3", 6),
+                    ("Item 3", 7),
+                    ("Item 3", 8),
+                    ("Item 3", 9),
+                    ("Item 3", 10),
+                    ("Item 3", 11),
+                    ("Item 3", 12),
+                    ("Item 3", 13),
+                    ("Item 3", 14),
+                    ("Item 3", 15),
+                    ("Item 3", 16),
+                    ("Item 4", 17),
+                    ("Item 5", 18),
+                ],
+                label="Dropdown",
+                name="DD",
+                # on_change=self._on_change,
+            ),
+            1,
+        )
+
+        layout2 = Layout([1, 1, 1, 1])
+        self.add_layout(layout2)
+        # layout2.add_widget(self._reset_button, 0)
+        # layout2.add_widget(Button("View Data", self._view), 1)
+        layout2.add_widget(Button("取消", self._cancel), 3)
+        self.fix()
+
+
+    @staticmethod
+    def _cancel():
+        raise NextScene("Main")
+
+
+# ----- Main Menu view -----
+class MainView(Frame):
+    def __init__(self, screen):
+        super(MainView, self).__init__(
+            screen,
+            screen.height * 4 // 5,
+            screen.width * 4 // 5,
+            #    on_load=self._reload_list,
+            hover_focus=True,
+            can_scroll=False,
+            title="Main Menu",
+        )
+
+        # Create the form for displaying the list of contacts.
+
+        self._tradeview_button = Button("交易记录", self._tradeview)
+        self._monthview_button = Button("月度汇总", self._monthview)
+        self._fundview_button = Button("基金汇总", self._fundview)
+        layout = Layout([100], fill_frame=True)
+        self.add_layout(layout)
+        layout.add_widget(self._tradeview_button)
+        layout.add_widget(Divider())
+        layout.add_widget(self._monthview_button)
+        layout.add_widget(Divider())
+        layout.add_widget(self._fundview_button)
+
+        self._edit_button = Button("Edit", self._edit)
+        self._delete_button = Button("Edit", self._delete)
+
+        layout2 = Layout([1, 1, 1, 1])
+        self.add_layout(layout2)
+        # layout2.add_widget(Button("Add", self._add), 0)
+        # layout2.add_widget(self._edit_button, 1)
+        # layout2.add_widget(self._delete_button, 2)
+        layout2.add_widget(Button("Quit", self._quit), 3)
+        self.fix()
+        self._on_pick()
+
+    def _tradeview(self):
+        raise NextScene("TradeDetail")
+
+    def _monthview(self):
+        raise NextScene("MonthView")
+
+    def _fundview(self):
+        raise NextScene("FundView")
+
+    def _on_pick(self):
+        # self._edit_button.disabled = self._list_view.value is None
+        # self._delete_button.disabled = self._list_view.value is None
+        pass
+
+    def _add(self):
+        self._model.current_id = None
+        raise NextScene("Edit Contact")
+
+    def _edit(self):
+        self.save()
+        self._model.current_id = self.data["contacts"]
+        raise NextScene("Edit Contact")
+
+    def _delete(self):
+        self.save()
+        del self._model.contacts[self.data["contacts"]]
+        self._reload_list()
+
+    @staticmethod
+    def _quit():
+        raise StopApplication("User pressed quit")
+
+
 def demo(screen, scene):
     scenes = [
-        # Scene([TradeView(screen, contacts)], -1, name="Main"),
-        Scene([TradeView(screen, tradehistory)], -1, name="TradeDetail")
+        Scene([TradeView(screen, tradehistory)], -1, name="TradeDetail"),
+        Scene([MonthView(screen,tradehistory)], -1, name="MonthView"),
+        Scene([MainView(screen)], -1, name="Main"),
     ]
 
     screen.play(scenes, stop_on_resize=True, start_scene=scene, allow_int=True)
-
-
-# tradehistory = TradeHistoryModel()
 
 
 last_scene = None
